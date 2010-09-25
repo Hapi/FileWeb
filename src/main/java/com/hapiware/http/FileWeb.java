@@ -127,7 +127,7 @@ public class FileWeb
 	private static void handleRequest(Socket socket) throws IOException
 	{
 		try {
-			int retries = 30;
+			int retries = 60;
 			InputStream is = socket.getInputStream();
 			while(
 				retries > 0
@@ -144,7 +144,7 @@ public class FileWeb
 				else {
 					retries--;
 					try {
-						Thread.sleep(1000);
+						Thread.sleep(500);
 					}
 					catch(InterruptedException e) {
 						// Does nothing.

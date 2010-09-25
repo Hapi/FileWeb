@@ -71,15 +71,12 @@ public class HttpRequest
 			statusCode = HttpStatusCode.SC200;
 		}
 		catch(IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		catch(URISyntaxException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		catch(NoSuchElementException e) {
-			// TODO
 			e.printStackTrace();
 		}
 		finally {
