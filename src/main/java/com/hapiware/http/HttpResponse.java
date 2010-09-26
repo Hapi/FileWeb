@@ -13,10 +13,13 @@ import java.io.OutputStream;
 import java.io.StringReader;
 import java.text.DateFormat;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.StringTokenizer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 
 
@@ -52,14 +55,22 @@ public class HttpResponse
 	
 	private final static String HTTP_VERSION = "HTTP/1.1";
 	private final static String CRLF = "\r\n";
+	private final static String HOME_CLASS = "home";
+	private final static String PARENT_CLASS = "parent";
 	private final static String DIR_CLASS = "directory";
 	private final static String ZIP_CLASS = "zip";
 	private final static String JAR_CLASS = "jar";
+	private final static String RESOURCE_ROOT = "/com.hapiware.style/";
+	private final static String CSS =  "css/";
+	private final static String CSS_ROOT =  RESOURCE_ROOT + CSS;
+	private final static String CSS_NAME = "style.css";
+	private final static int MAX_NUMBER_OF_ZIP_ENTRIES = 500;
+	
 	
 	private final HttpRequest _request;
 	
 	/**
-	 * This variable is only for loggin purpouses.
+	 * This variable is only for logging purpouses.
 	 */
 	private String _contentForLogging;
 	
@@ -71,12 +82,11 @@ public class HttpResponse
 	
 	private String htmlBody(String content)
 	{
-	  	//<link href="../css/#{globalBB.style}/style.min.css" rel="stylesheet" type="text/css" />
-
 		String retVal = "";
 		retVal += "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n";
 		retVal += "<html><head>\n";
-		retVal += "<link href=\"__hapiware__/css/style.css\" rel=\"stylesheet\" type=\"text/css\" />\n";
+		retVal +=
+			"<link href=\"" + CSS_ROOT + CSS_NAME + "\" rel=\"stylesheet\" type=\"text/css\" />\n";
 		retVal += "</head><body>\n";
 		retVal += content;
 		retVal += "</body></html>\n";
@@ -107,8 +117,8 @@ public class HttpResponse
 				peekLink,
 				fileSize,
 				fileModifiedDate,
-				fileModifiedTime)
-			;
+				fileModifiedTime
+			);
 	}
 	
 	private String addTableRowFixed(
@@ -121,28 +131,28 @@ public class HttpResponse
 	)
 	{
 		String row = "  <tr>\n";
-		if(peekLink.length() > 0)
-			row += "    <td class=\"peek\">" + peekLink + "</td>\n";
-		else
-			row += "    <td/>\n";
+		row += "    <td class=\"peek\">" + peekLink + "</td>\n";
 		row += "    <td class=\""+ documentClass + "\"/>\n";
 		row += "    <td class=\"file-name\">" + fileName + "</td>\n";
-		row +=
-			"    <td class=\"file-size\">"
-			+ (fileSize == null ? "" : fileSizeToString(fileSize))
-			+ "</td>\n";
+		String[] size = fileSizeToString(fileSize);
+		row +="    <td class=\"file-size\">" + (size == null ? "" : size[0]) + "</td>\n";
+		row +="    <td class=\"file-unit\">" + (size == null ? "" : size[1]) + "</td>\n";
 		row += "    <td class=\"file-modified-date\">" + fileModifiedDate + "</td>\n";
 		row += "    <td class=\"file-modified-time\">" + fileModifiedTime + "</td>\n";
 		row += "  </tr>\n";
 		return row;
 	}
 	
-	private String fileSizeToString(long fileSize)
+	private String[] fileSizeToString(Long fileSize)
 	{
+		if(fileSize == null)
+			return null;
+		
 		for(PrefixMultiplier pm : PrefixMultiplier.values())
 			if(fileSize >= pm.multiplier)
-				return fileSize / pm.multiplier + " " + pm.prefix + "B";
-		return fileSize + " B";
+				return
+					new String [] { ((Long)(fileSize / pm.multiplier)).toString(), pm.prefix + "B"};
+		return new String[] { ((Long)fileSize).toString(), "B" };
 	}
 	
 	
@@ -212,14 +222,14 @@ public class HttpResponse
 				Thread
 					.currentThread()
 					.getContextClassLoader()
-					.getResourceAsStream("css/style.css");
+					.getResourceAsStream(CSS + CSS_NAME);
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			int b;
 			while((b = is.read()) != -1)
 				out.write(b);
 			byte[] styleSheet = out.toByteArray();
 			out.close();
-			_contentForLogging = "css/style.css";
+			_contentForLogging = CSS_ROOT + CSS_NAME;
 			String contentType = "text/css";
 			writeHeader(os, HttpStatusCode.SC200, contentType, styleSheet.length);
 			os.write(styleSheet);
@@ -230,6 +240,34 @@ public class HttpResponse
 		}
 	}
 	
+	private void writeImage(OutputStream os, String imageName)
+		throws
+			IOException
+	{
+		InputStream is = null;
+		try {
+			is =
+				Thread
+					.currentThread()
+					.getContextClassLoader()
+					.getResourceAsStream(imageName);
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			int b;
+			while((b = is.read()) != -1)
+				out.write(b);
+			byte[] image = out.toByteArray();
+			out.close();
+			_contentForLogging = imageName;
+			DocType docType = new DocType(imageName);
+			writeHeader(os, HttpStatusCode.SC200, docType.getMimeType(), image.length);
+			os.write(image);
+		}
+		finally {
+			if(is != null)
+				is.close();
+		}
+	}
+
 	private void writeDirectories(OutputStream os)
 		throws
 			IOException
@@ -253,10 +291,10 @@ public class HttpResponse
 			String parent = uriPath.substring(0, uriPath.length() - 2);
 			int i = parent.lastIndexOf("/");
 			fileList +=
-				addTableRowFixed(DIR_CLASS, "<a href=\"/\">[root]</a>", "", null, "", "");
+				addTableRowFixed(HOME_CLASS, "<a href=\"/\">[root]</a>", "", null, "", "");
 			fileList += 
 				addTableRowFixed(
-					DIR_CLASS,
+					PARENT_CLASS,
 					"<a href=\"" + parent.subSequence(0, i) + "/\">[..]</a>",
 					"",
 					null,
@@ -312,23 +350,48 @@ public class HttpResponse
 			File f = new File(".", uriPath);
 			if(f.exists()) {
 				DocType docType = new DocType(f.getName());
-				_contentForLogging = f.getName();
-				writeHeader(os, HttpStatusCode.SC200, docType.getMimeType(), f.length());
-				is = new BufferedInputStream(new FileInputStream(f));
-				byte[] buffer = new byte[4096];
-				while((is.read(buffer)) != -1)
-					os.write(buffer);
+				String query = _request.getUri().getQuery(); 
+				if(query != null && query.equals("op=peek")) {
+					// Lists the content of jar and zip files.
+					
+					_contentForLogging = f.getName() + " : peek()";
+					if(
+						docType.getDocumentClass().equals(JAR_CLASS) ||
+						docType.getDocumentClass().equals(ZIP_CLASS)
+					) {
+						ZipFile z = new ZipFile(f);
+						int numOfZipEntries = 0;
+						Enumeration<? extends ZipEntry> entries = z.entries();
+						String list = "";
+						while(
+							numOfZipEntries++ < MAX_NUMBER_OF_ZIP_ENTRIES
+							&& entries.hasMoreElements()
+						)
+							list += entries.nextElement().getName() + "\n";
+						
+						if(numOfZipEntries >= MAX_NUMBER_OF_ZIP_ENTRIES)
+							list += "... entries. First " + numOfZipEntries + " was shown.\n";
+						
+						writeHeader(os, HttpStatusCode.SC200, "text/plain", list.length());
+						os.write(list.getBytes());
+					}
+					else {
+						LOGGER.warning("An attempt to peek uri: " + uriPath);
+						writeError(os);
+					}
+				}
+				else {
+					_contentForLogging = f.getName();
+					writeHeader(os, HttpStatusCode.SC200, docType.getMimeType(), f.length());
+					is = new BufferedInputStream(new FileInputStream(f));
+					byte[] buffer = new byte[4096];
+					while((is.read(buffer)) != -1)
+						os.write(buffer);
+				}
 			}
 			else {
 				LOGGER.info(uriPath + " was not found.");
-				HttpStatusCode statusCode = HttpStatusCode.SC404;
-				String content =
-					htmlBody(
-						statusCode.getStatusCode() + " : " + statusCode.getReasonPhrase() + "\n"
-					);
-				_contentForLogging = content;
-				writeHeader(os, statusCode, "text/html", content.length());
-				os.write(content.getBytes());
+				writeError(os);
 			}
 		}
 		catch(FileNotFoundException e) {
@@ -348,7 +411,23 @@ public class HttpResponse
 		}
 	}
 	
-	public void write(OutputStream os) throws IOException
+	private void writeError(OutputStream os)
+		throws
+			IOException
+	{
+		HttpStatusCode statusCode = HttpStatusCode.SC404;
+		String content =
+			htmlBody(
+				statusCode.getStatusCode() + " : " + statusCode.getReasonPhrase() + "\n"
+			);
+		_contentForLogging = content;
+		writeHeader(os, statusCode, "text/html", content.length());
+		os.write(content.getBytes());
+	}
+	
+	public void write(OutputStream os)
+		throws
+			IOException
 	{
 		if(_request.getStatusCode() != HttpStatusCode.SC200) {
 			String contentType = "text/html";
@@ -362,8 +441,14 @@ public class HttpResponse
 			return;
 		}
 		
-		if(uriPath.equals("/__hapiware__/css/style.css")) {
+		if(uriPath.equals(CSS_ROOT + CSS_NAME)) {
 			writeCss(os);
+			return;
+		}
+		
+		// Handle required resources by url values (images).
+		if(uriPath.contains(CSS_ROOT)) {
+			writeImage(os, uriPath.substring(CSS_ROOT.length()));
 			return;
 		}
 		
@@ -512,7 +597,7 @@ public class HttpResponse
 		{
 			for(String type : PIC_TYPES)
 				if(fileNameToCheck.endsWith(type))
-					return new DocType(type, "image/" + type);
+					return new DocType("image", "image/" + type);
 			
 			return null;
 		}

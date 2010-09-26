@@ -1,3 +1,70 @@
-td.peek:after {
-	content: "Peek";
+/* DO NOT USE absolute paths in url's. Use relative paths instead. */
+
+table tr td {
+	padding-left: 16px;
+}
+
+.file-size {
+	padding-left: 30px;
+	text-align: right;
+}
+
+.file-unit {
+	padding-left: 2px;
+	text-align: left;
+}
+
+
+.peek {
+	padding-left: 16px;
+	width: 16px;
+}
+
+.peek a {
+	padding-left: 16px;
+	background-position: 0 2px;
+	background-image: url(img/eye.png);
+	background-repeat: no-repeat;
+}
+
+.home {
+	background-position: 0 2px;
+	background-image: url(img/application-home.png);
+	background-repeat: no-repeat;
+}
+
+.directory, .parent {
+	background-position: 0 2px;
+	background-image: url(img/folder-horizontal.png);
+	background-repeat: no-repeat;
+}
+
+.jar, .zip {
+	background-position: 0 2px;
+	background-image: url(img/folder-zipper.png);
+	background-repeat: no-repeat;
+}
+
+.pdf {
+	background-position: 0 2px;
+	background-image: url(img/document-pdf.png);
+	background-repeat: no-repeat;
+}
+
+.text, .xml {
+	background-position: 0 2px;
+	background-image: url(img/document-text.png);
+	background-repeat: no-repeat;
+}
+
+.image {
+	background-position: 0 2px;
+	background-image: url(img/image.png);
+	background-repeat: no-repeat;
+}
+
+.binary {
+	background-position: 0 2px;
+	background-image: url(img/document.png);
+	background-repeat: no-repeat;
 }
