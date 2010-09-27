@@ -7,7 +7,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -22,6 +21,7 @@ import javax.management.MalformedObjectNameException;
 import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
+
 
 
 /**
@@ -104,24 +104,9 @@ public class FileWeb
 	
 	private static void showVersionAndExit()
 	{
-		final String propertyFile = "version.properties";
-		final String property = "version";
-		Properties p = new Properties();
-		try {
-			InputStream is =
-				Thread.currentThread().getContextClassLoader().getResourceAsStream(propertyFile);
-			if(is == null) {
-				System.out.println(
-					"Version information unavailable due to missing property file: " + propertyFile
-				);
-				System.exit(-1);
-			}
-			p.load(is);
-			System.out.println("  Version: " + p.getProperty(property));
-		}
-		catch(IOException e) {
-			e.printStackTrace();
-		}
+		System.out.println(
+			"  Version: " + FileWeb.class.getPackage().getImplementationVersion()
+		);
 		System.exit(0);
 	}
 
