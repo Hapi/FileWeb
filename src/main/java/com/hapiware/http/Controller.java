@@ -1,5 +1,13 @@
 package com.hapiware.http;
 
+
+/**
+ * {@code Controller} is an utility class for collecting some statistical information about
+ * running {@link FileWeb}. All the utility methods are synchronized. 
+ * 
+ * @author <a href="http://www.hapiware.com" target="_blank">hapi</a>
+ *
+ */
 public class Controller
 {
 	private final FileWeb _fileWeb;

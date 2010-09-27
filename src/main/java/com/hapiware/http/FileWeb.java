@@ -5,7 +5,9 @@ import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -22,6 +24,13 @@ import javax.management.ObjectName;
 import javax.management.ReflectionException;
 
 
+/**
+ * {@code FileWeb} is a small web server for publishing a directory tree over (local) net.
+ * Web root directory will be the directory where {@code FileWeb} was started.
+ *  
+ * @author <a href="http://www.hapiware.com" target="_blank">hapi</a>
+ *
+ */
 public class FileWeb
 {
 	private final static Logger LOGGER = Logger.getLogger(FileWeb.class.getName());
@@ -29,7 +38,7 @@ public class FileWeb
 	private final static int CONNECTION_TIMEOUT_MS = 2000;
 	private final static int DEFAULT_PORT = 80;
 	private final static int DEFAULT_NUMBER_OF_THREADS = 20;
-	private final static int MAX_NUMBER_OF_THREADS = 500;
+	private final static int MAX_NUMBER_OF_THREADS = 100;
 	private final static String CONTROLLING_NAME = "com.hapiware.http:type=Controlling";
 
 	
@@ -40,6 +49,20 @@ public class FileWeb
 	
 	public static void main(String[] args)
 	{
+		if(args.length > 2)
+			usageAndExit(-1);
+
+		if(
+			args[0].equalsIgnoreCase("-?") ||
+			args[0].equalsIgnoreCase("-h") ||
+			args[0].equalsIgnoreCase("-help") ||
+			args[0].equalsIgnoreCase("--help")
+		)
+			usageAndExit(0);
+		
+		if(args[0].equalsIgnoreCase("--version"))
+			showVersionAndExit();
+		
 		int port = DEFAULT_PORT;
 		int numberOfThreads = DEFAULT_NUMBER_OF_THREADS;
 		if(args.length == 1 || args.length == 2) {
@@ -48,7 +71,7 @@ public class FileWeb
 			}
 			catch(NumberFormatException e) {
 				LOGGER.severe("Start parameter '" + args[0] + "' was not recognised as a port number.");
-				System.exit(1);
+				usageAndExit(1);
 			}
 		}
 		if(args.length == 2) {
@@ -57,14 +80,14 @@ public class FileWeb
 			}
 			catch(NumberFormatException e) {
 				LOGGER.severe("Start parameter '" + args[1] + "' was not recognised as a number.");
-				System.exit(1);
+				usageAndExit(1);
 			}
 		}
 		if(numberOfThreads < 1 || numberOfThreads > MAX_NUMBER_OF_THREADS) {
 			numberOfThreads = DEFAULT_NUMBER_OF_THREADS;
 			LOGGER.warning(
 				"Number of threads must be something between 1 - " + MAX_NUMBER_OF_THREADS
-					+ ". Using " + DEFAULT_NUMBER_OF_THREADS
+					+ ". Using " + DEFAULT_NUMBER_OF_THREADS + "."
 			);
 		}
 		
@@ -72,13 +95,62 @@ public class FileWeb
 			registerAndStartFileWeb(port, numberOfThreads);
 		}
 		catch(Throwable t) {
-			LOGGER.log(Level.SEVERE, "Cannot start FileWeb", t);
+			LOGGER.log(Level.SEVERE, "Cannot start fileweb", t);
 			System.exit(1);
 		}
 		
 		LOGGER.info("Bye bye.");
 	}
+	
+	private static void showVersionAndExit()
+	{
+		final String propertyFile = "version.properties";
+		final String property = "version";
+		Properties p = new Properties();
+		try {
+			InputStream is =
+				Thread.currentThread().getContextClassLoader().getResourceAsStream(propertyFile);
+			if(is == null) {
+				System.out.println(
+					"Version information unavailable due to missing property file: " + propertyFile
+				);
+				System.exit(-1);
+			}
+			p.load(is);
+			System.out.println("  Version: " + p.getProperty(property));
+		}
+		catch(IOException e) {
+			e.printStackTrace();
+		}
+		System.exit(0);
+	}
 
+	private static void usageAndExit(int status)
+	{
+		final String fileWeb = "java -jar fileweb.jar";
+		System.out.println("Description: A small and customisable web server for publishing a directory tree");
+		System.out.println("             over (local) net. Web root directory will be the directory where");
+		System.out.println("             'fileweb' was started.");
+		System.out.println();
+		System.out.println("Usage: " + fileWeb + " [-? | -h | -help | --help | --version]");
+		System.out.println("       " + fileWeb + " [PORT [NUM_OF_THREADS]]");
+		System.out.println();
+		System.out.println("       PORT:");
+		System.out.println("           A port number. Default port is " + DEFAULT_PORT + ".");
+		System.out.println();
+		System.out.println("       NUM_OF_THREADS:");
+		System.out.println("           Maximum number of threads in the thread pool (1 - " + MAX_NUMBER_OF_THREADS + ").");
+		System.out.println("           Default number of threads is " + DEFAULT_NUMBER_OF_THREADS + ".");
+		System.out.println();
+		System.out.println("Examples:");
+		System.out.println("    " + fileWeb + " -?");
+		System.out.println("    " + fileWeb);
+		System.out.println("    " + fileWeb + " 50001");
+		System.out.println("    " + fileWeb + " 50001 35");
+		System.out.println();
+		System.exit(status);
+	}
+	
 	private static void registerAndStartFileWeb(int port, int numberOfThreads)
 		throws
 			InstanceAlreadyExistsException,
@@ -117,7 +189,7 @@ public class FileWeb
 				public void run()
 				{
 					_executorService.shutdown();
-					System.out.println("FileWeb shutdown.");
+					System.out.println("fileweb shutdown.");
 				}
 			}
 		);
@@ -126,45 +198,35 @@ public class FileWeb
 	
 	private static void handleRequest(Socket socket) throws IOException
 	{
-		try {
-			int retries = 60;
-			InputStream is = socket.getInputStream();
-			while(
-				retries > 0
-				&& socket.isConnected()
-				&& !socket.isOutputShutdown() 
-				&& !socket.isInputShutdown()
-			) {
-				if(is.available() > 0) {
-					HttpRequest request = new HttpRequest(is);
-					HttpResponse response = new HttpResponse(request);
-					response.write(socket.getOutputStream());
-					break;
-				}
-				else {
-					retries--;
-					try {
-						Thread.sleep(500);
-					}
-					catch(InterruptedException e) {
-						// Does nothing.
-					}
-				}
+		int retries = 60;
+		InputStream is = socket.getInputStream();
+		while(
+			retries > 0
+			&& socket.isConnected()
+			&& !socket.isOutputShutdown() 
+			&& !socket.isInputShutdown()
+		) {
+			if(is.available() > 0) {
+				HttpRequest request = new HttpRequest(is);
+				HttpResponse response = new HttpResponse(request);
+				response.write(socket.getOutputStream());
+				break;
 			}
-		}
-		finally {
-			try {
-				socket.close();
-			}
-			catch(IOException e) {
-				// Does nothing.
+			else {
+				retries--;
+				try {
+					Thread.sleep(500);
+				}
+				catch(InterruptedException e) {
+					// Does nothing.
+				}
 			}
 		}
 	}
 	
 	private void start()
 	{
-		LOGGER.info("FileWeb started.");
+		LOGGER.info("fileweb started.");
 		try {
 			ServerSocket serverSocket = new ServerSocket(_port);
 			serverSocket.setSoTimeout(CONNECTION_TIMEOUT_MS);
@@ -179,16 +241,25 @@ public class FileWeb
 									_controller.enter();
 									handleRequest(socket);
 								}
+								catch(SocketException e) {
+									LOGGER.log(Level.FINE, "Protocol problem.", e);
+								}
 								catch(RuntimeException e) {
 									_controller.registerError();
 									throw e;
 								}
 								catch(Throwable t) {
 									_controller.registerError();
-									t.printStackTrace();
+									LOGGER.log(Level.WARNING, "", t);
 								}
 								finally {
 									_controller.exit();
+									try {
+										socket.close();
+									}
+									catch(IOException e) {
+										// Does nothing.
+									}
 								}
 							}
 						}
@@ -211,7 +282,7 @@ public class FileWeb
 	public void stop()
 	{
 		_executorService.shutdown();
-		LOGGER.info("FileWeb stopped.");
+		LOGGER.info("fileweb stopped.");
 	}
 
 	public Controller getController()

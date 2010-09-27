@@ -1,7 +1,34 @@
-/* DO NOT USE absolute paths in url's. Use relative paths instead. */
+/*
+ * 
+ * DO NOT USE absolute paths in url's. Use relative paths instead.
+ * 
+ */
 
-table tr td {
+h1 {
+	font-size: 18px;
+	border-bottom: 1px solid gray;
+}
+
+table {
 	padding-left: 16px;
+}
+
+.home + td + .file-name > a:before, .parent + td + .file-name > a:before {
+	content: "[";
+}
+
+.home + td + .file-name > a:after, .parent + td + .file-name > a:after {
+	content: "]";
+}
+
+/*
+.directory + td + .file-name > a:before {
+	content: "[";
+}
+*/
+
+.directory + td + .file-name > a:after {
+	content: "/";
 }
 
 .file-size {
@@ -11,60 +38,67 @@ table tr td {
 
 .file-unit {
 	padding-left: 2px;
-	text-align: left;
+	text-align: right;
 }
 
+.file-modified-date{
+	padding-left: 20px;
+	text-align: right;
+}
+
+.file-modified-time {
+	padding-left: 10px;
+	text-align: right;
+}
 
 .peek {
-	padding-left: 16px;
 	width: 16px;
 }
 
+td {
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+	
 .peek a {
 	padding-left: 16px;
-	background-position: 0 2px;
+	background-position: center center;
 	background-image: url(img/eye.png);
-	background-repeat: no-repeat;
 }
+
+.home, .parent, .directory {
+	padding-left: 16px;
+}
+
 
 .home {
-	background-position: 0 2px;
 	background-image: url(img/application-home.png);
-	background-repeat: no-repeat;
 }
 
-.directory, .parent {
-	background-position: 0 2px;
-	background-image: url(img/folder-horizontal.png);
-	background-repeat: no-repeat;
+.parent {
+	background-image: url(img/blue-folder-horizontal-parent.png);
+}
+
+.directory {
+	background-image: url(img/blue-folder-horizontal.png);
 }
 
 .jar, .zip {
-	background-position: 0 2px;
-	background-image: url(img/folder-zipper.png);
-	background-repeat: no-repeat;
+	background-image: url(img/blue-folder-horizontal-zipper.png);
 }
 
 .pdf {
-	background-position: 0 2px;
-	background-image: url(img/document-pdf.png);
-	background-repeat: no-repeat;
+	background-image: url(img/blue-document-pdf.png);
 }
 
-.text, .xml {
-	background-position: 0 2px;
-	background-image: url(img/document-text.png);
-	background-repeat: no-repeat;
+.text, .xml, .html {
+	background-image: url(img/blue-document-text.png);
 }
 
 .image {
-	background-position: 0 2px;
 	background-image: url(img/image.png);
-	background-repeat: no-repeat;
 }
 
-.binary {
-	background-position: 0 2px;
-	background-image: url(img/document.png);
-	background-repeat: no-repeat;
+.unknown {
+	background-image: url(img/blue-document.png);
 }

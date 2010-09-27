@@ -3,6 +3,12 @@ package com.hapiware.http.jmx;
 import com.hapiware.http.Controller;
 
 
+/**
+ * The implementation of the {@link ControllingMBean}.
+ * 
+ * @author <a href="http://www.hapiware.com" target="_blank">hapi</a>
+ * @see Controller
+ */
 public class Controlling
 	implements
 		ControllingMBean

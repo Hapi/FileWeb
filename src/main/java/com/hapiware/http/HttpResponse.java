@@ -22,12 +22,19 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 
-
-
 /**
+ * {@code HttpResponse} gets the {@link HttpRequest} and writes the HTTP response to
+ * {@link OutputStream}.
+ * <p/>
+ * In general the response is a HTML representation of the current directory. However, if
+ * a file is requested then what happens depends on the ending of the file name. Basically
+ * there are two possible results; file is shown as is in browser or browser starts to
+ * download it. In general, text based files are shown and unknown (i.e. potential binary)
+ * files are downloaded. See {@link DocType} how different file name endings are handled.
  * 
  * @author <a href="http://www.hapiware.com" target="_blank">hapi</a>
- *
+ * @see #write(OutputStream)
+ * @see DocType
  */
 public class HttpResponse
 {
@@ -64,6 +71,8 @@ public class HttpResponse
 	private final static String CSS =  "css/";
 	private final static String CSS_ROOT =  RESOURCE_ROOT + CSS;
 	private final static String CSS_NAME = "style.css";
+	private final static String TEXT_PLAIN = "text/plain";
+	private final static String APPLICATION_XML = "application/xml";
 	private final static int MAX_NUMBER_OF_ZIP_ENTRIES = 500;
 	
 	
@@ -79,7 +88,56 @@ public class HttpResponse
 	{
 		_request = request;
 	}
+
 	
+	/**
+	 * Writes the HTTP response to a given {@link OutputStream}.
+	 * 
+	 * @param os
+	 * 		The {@link OutputStream} where the HTTP response is to be written.
+	 * 
+	 * @throws IOException
+	 * 		If an I/O error occurs.
+	 */
+	public void write(OutputStream os)
+		throws
+			IOException
+	{
+		if(_request.getStatusCode() != HttpStatusCode.SC200) {
+			String contentType = "text/html";
+			writeHeader(os, _request.getStatusCode(), contentType, 0);
+			return;
+		}
+		
+		String uriPath = _request.getUri().getPath();
+		
+		// Handles favicon.ico
+		if(uriPath.contains("favicon.ico")) {
+			writeFavicon(os);
+			return;
+		}
+		
+		// Handles CSS style sheet request.
+		if(uriPath.equals(CSS_ROOT + CSS_NAME)) {
+			writeCss(os);
+			return;
+		}
+		
+		// Handles required resources by url values (images).
+		if(uriPath.contains(CSS_ROOT)) {
+			writeImage(os, uriPath.substring(CSS_ROOT.length()));
+			return;
+		}
+		
+		// Handles directories and files.
+		if(uriPath.endsWith("/"))
+			writeDirectories(os);
+		else
+			writeFiles(os);
+	}
+	
+
+
 	private String htmlBody(String content)
 	{
 		String retVal = "";
@@ -104,7 +162,7 @@ public class HttpResponse
 	{
 		String linkForFileName = null;
 		if(documentClass.equals(DIR_CLASS))
-			linkForFileName = "<a href=\"" + uriPath + fileName + "/\">[" + fileName + "]</a>";
+			linkForFileName = "<a href=\"" + uriPath + fileName + "/\">" + fileName + "</a>";
 		else
 			linkForFileName = "<a href=\"" + uriPath + fileName + "\">" + fileName + "</a>";
 		String peekLink  = "";
@@ -131,8 +189,8 @@ public class HttpResponse
 	)
 	{
 		String row = "  <tr>\n";
-		row += "    <td class=\"peek\">" + peekLink + "</td>\n";
 		row += "    <td class=\""+ documentClass + "\"/>\n";
+		row += "    <td class=\"peek\">" + peekLink + "</td>\n";
 		row += "    <td class=\"file-name\">" + fileName + "</td>\n";
 		String[] size = fileSizeToString(fileSize);
 		row +="    <td class=\"file-size\">" + (size == null ? "" : size[0]) + "</td>\n";
@@ -143,6 +201,17 @@ public class HttpResponse
 		return row;
 	}
 	
+	
+	/**
+	 * Converts file size to a {@code String} representation using prefix multipliers
+	 * (i.e. k, M, G, etc.).
+	 * 
+	 * @param fileSize
+	 * 		File size.
+	 * 
+	 * @return
+	 * 		{@code String[0]} has the file size and {@code String[1]} has the prefix multiplier.
+	 */
 	private String[] fileSizeToString(Long fileSize)
 	{
 		if(fileSize == null)
@@ -174,7 +243,7 @@ public class HttpResponse
 		}
 		DateFormat df = DateFormat.getDateTimeInstance(DateFormat.LONG, DateFormat.FULL);
 		responseHeader += "Date: " + df.format(new Date()) + CRLF;
-		responseHeader += "Server: FileWeb/1.0.0 (Java/5.0)" + CRLF;
+		responseHeader += "Server: FileWeb/1.0 (Java/5.0)" + CRLF;
 		responseHeader += "Content-Type: " + contentType + CRLF;
 		responseHeader += "Content-Length: " + contentLength + CRLF;
 		responseHeader += "Connection: close" + CRLF;
@@ -184,6 +253,28 @@ public class HttpResponse
 	}
 	
 	
+	private void writeError(OutputStream os)
+		throws
+			IOException
+	{
+		HttpStatusCode statusCode = HttpStatusCode.SC404;
+		String content =
+			htmlBody(
+				statusCode.getStatusCode() + " : " + statusCode.getReasonPhrase() + "\n"
+			);
+		_contentForLogging = content;
+		writeHeader(os, statusCode, "text/html", content.length());
+		os.write(content.getBytes());
+	}
+	
+
+	/**
+	 * Fetches a requested favicon.ico and writes it to {@link OutputStream}.
+	 * 
+	 * @param os
+	 * 
+	 * @throws IOException
+	 */
 	private void writeFavicon(OutputStream os)
 		throws
 			IOException
@@ -195,6 +286,11 @@ public class HttpResponse
 					.currentThread()
 					.getContextClassLoader()
 					.getResourceAsStream("img/favicon.ico");
+			if(is == null) {
+				writeHeader(os, HttpStatusCode.SC204, "", 0);
+				return;
+			}
+			
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			int b;
 			while((b = is.read()) != -1)
@@ -212,6 +308,13 @@ public class HttpResponse
 		}
 	}
 	
+	/**
+	 * Fetches a requested CSS style sheet and writes it to {@link OutputStream}.
+	 * 
+	 * @param os
+	 * 
+	 * @throws IOException
+	 */
 	private void writeCss(OutputStream os)
 		throws
 			IOException
@@ -223,6 +326,11 @@ public class HttpResponse
 					.currentThread()
 					.getContextClassLoader()
 					.getResourceAsStream(CSS + CSS_NAME);
+			if(is == null) {
+				writeHeader(os, HttpStatusCode.SC204, "", 0);
+				throw new IllegalStateException(CSS + CSS_NAME + " is missing.");
+			}
+			
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			int b;
 			while((b = is.read()) != -1)
@@ -240,6 +348,16 @@ public class HttpResponse
 		}
 	}
 	
+	
+	/**
+	 * Fetches a requested image and writes it to {@link OutputStream}.
+	 * 
+	 * @param os
+	 * 
+	 * @param imageName
+	 * 
+	 * @throws IOException
+	 */
 	private void writeImage(OutputStream os, String imageName)
 		throws
 			IOException
@@ -251,6 +369,11 @@ public class HttpResponse
 					.currentThread()
 					.getContextClassLoader()
 					.getResourceAsStream(imageName);
+			if(is == null) {
+				writeHeader(os, HttpStatusCode.SC204, "", 0);
+				throw new IllegalStateException("Image '" + imageName + "' was not found.");
+			}
+			
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			int b;
 			while((b = is.read()) != -1)
@@ -268,6 +391,14 @@ public class HttpResponse
 		}
 	}
 
+	
+	/**
+	 * Writes the requested directory content to {@link OutputStream} as an HTML document.
+	 * 
+	 * @param os
+	 * 
+	 * @throws IOException
+	 */
 	private void writeDirectories(OutputStream os)
 		throws
 			IOException
@@ -276,26 +407,21 @@ public class HttpResponse
 		File directory = new File(".", uriPath);
 		if(!directory.exists()) {
 			LOGGER.info(uriPath + " was not found.");
-			HttpStatusCode statusCode = HttpStatusCode.SC404;
-			String content =
-				htmlBody(
-					statusCode.getStatusCode() + " : " + statusCode.getReasonPhrase() + "\n"
-				);
-			writeHeader(os, statusCode, "text/html", content.length());
-			os.write(content.getBytes());
+			writeError(os);
 			return;
 		}
 		
-		String fileList = "<table>\n";
+		String fileList = "<h1>" + uriPath + "</h1>\n";
+		fileList += "<table>\n";
 		if(!uriPath.equals("/")) {
 			String parent = uriPath.substring(0, uriPath.length() - 2);
 			int i = parent.lastIndexOf("/");
 			fileList +=
-				addTableRowFixed(HOME_CLASS, "<a href=\"/\">[root]</a>", "", null, "", "");
+				addTableRowFixed(HOME_CLASS, "<a href=\"/\">root</a>", "", null, "", "");
 			fileList += 
 				addTableRowFixed(
 					PARENT_CLASS,
-					"<a href=\"" + parent.subSequence(0, i) + "/\">[..]</a>",
+					"<a href=\"" + parent.substring(0, i) + "/\">..</a>",
 					"",
 					null,
 					"",
@@ -340,6 +466,14 @@ public class HttpResponse
 		os.write(content.getBytes());
 	}
 	
+	
+	/**
+	 * Writes a requested file with a correct MIME type to {@link OutputStream}.
+	 * 
+	 * @param os
+	 * 
+	 * @throws IOException
+	 */
 	private void writeFiles(OutputStream os)
 		throws
 			IOException
@@ -372,7 +506,7 @@ public class HttpResponse
 						if(numOfZipEntries >= MAX_NUMBER_OF_ZIP_ENTRIES)
 							list += "... entries. First " + numOfZipEntries + " was shown.\n";
 						
-						writeHeader(os, HttpStatusCode.SC200, "text/plain", list.length());
+						writeHeader(os, HttpStatusCode.SC200, TEXT_PLAIN, list.length());
 						os.write(list.getBytes());
 					}
 					else {
@@ -411,54 +545,17 @@ public class HttpResponse
 		}
 	}
 	
-	private void writeError(OutputStream os)
-		throws
-			IOException
-	{
-		HttpStatusCode statusCode = HttpStatusCode.SC404;
-		String content =
-			htmlBody(
-				statusCode.getStatusCode() + " : " + statusCode.getReasonPhrase() + "\n"
-			);
-		_contentForLogging = content;
-		writeHeader(os, statusCode, "text/html", content.length());
-		os.write(content.getBytes());
-	}
 	
-	public void write(OutputStream os)
-		throws
-			IOException
-	{
-		if(_request.getStatusCode() != HttpStatusCode.SC200) {
-			String contentType = "text/html";
-			writeHeader(os, _request.getStatusCode(), contentType, 0);
-			return;
-		}
-		
-		String uriPath = _request.getUri().getPath();
-		if(uriPath.contains("favicon.ico")) {
-			writeFavicon(os);
-			return;
-		}
-		
-		if(uriPath.equals(CSS_ROOT + CSS_NAME)) {
-			writeCss(os);
-			return;
-		}
-		
-		// Handle required resources by url values (images).
-		if(uriPath.contains(CSS_ROOT)) {
-			writeImage(os, uriPath.substring(CSS_ROOT.length()));
-			return;
-		}
-		
-		if(uriPath.endsWith("/"))
-			writeDirectories(os);
-		else
-			writeFiles(os);
-	}
-
-	
+	/**
+	 * Makes some logging about the response. The logging level affects how much information
+	 * is shown. Levels used are, FINE, FINER and FINEST.
+	 * 
+	 * @param responseHeader
+	 * 		A header to be parsed.
+	 * 
+	 * @param statusCode
+	 * 		Current status code.
+	 */
 	private void log(String responseHeader, HttpStatusCode statusCode)
 	{
 		if(
@@ -480,16 +577,16 @@ public class HttpResponse
 					// Reads status line.
 					String line = reader.readLine();
 					
-					// Reads header.
+					// Reads header fields.
 					while((line = reader.readLine()) != null) {
-						// Breaks when headers end.
+						// Breaks when there are no more header fields.
 						if(line.length() == 0)
 							break;
 						
-						StringTokenizer headerTokenizer = new StringTokenizer(line, ":");
+						StringTokenizer fieldTokenizer = new StringTokenizer(line, ":");
 						respStr += 
-							"-> " + headerTokenizer.nextToken() + " : " 
-								+ headerTokenizer.nextToken().trim() + "\n";
+							"-> " + fieldTokenizer.nextToken() + " : " 
+								+ fieldTokenizer.nextToken().trim() + "\n";
 					}
 				}
 				catch(IOException e) {
@@ -506,25 +603,69 @@ public class HttpResponse
 	}
 	
 	
-	static class DocType {
+	/**
+	 * This class figures out the document classes and MIME types for a given file name.
+	 * Document class is used CSS styling purpouses and MIME for obvious reasons.
+	 * <p/>
+	 * Document type recognition is based how file name ends (e.g. .jpg, .txt, .pdf, README, etc).
+	 * There are two kind of recognition endings; fixed and customisable. Fixed endings are:
+	 * 	<ul>
+	 * 		<li>.jpg -> class="picture", MIME = image/jpeg</li>
+	 * 		<li>.jpeg -> class="picture", MIME = image/jpeg</li>
+	 * 		<li>.png -> class="picture", MIME = image/png</li>
+	 * 		<li>.gif -> class="picture", MIME = image/gif</li>
+	 * 		<li>.tiff -> class="picture", MIME = image/tiff</li>
+	 * 		<li>.jar -> class="jar", MIME = application/octet-stream</li>
+	 * 		<li>.war -> class="jar", MIME = application/octet-stream</li>
+	 * 		<li>.ear -> class="jar", MIME = application/octet-stream</li>
+	 * 		<li>.zip -> class="zip", MIME = application/zip</li>
+	 * 		<li>.pdf -> class="pdf", MIME = application/pdf</li>
+	 * 		<li>.html -> class="html", MIME = text/html</li>
+	 * 		<li>.htm -> class="html", MIME = text/html</li>
+	 * 	</ul>
+	 *
+	 * Customisable endings are further divided to two different groups based on their MIME type,
+	 * {@code plain/text} and {@code application/xml} and their document classes are
+	 * {@code class="text"} and {@code class="xml"} respectively. To have either MIME type for
+	 * a certain file name ending the respective {@code .conf} file must be edited.
+	 * 
+	 * If file name does not match either fixed or customisable set of endings then
+	 * {@code class="unknown"} and MIME type is {@code application/octet-stream}.
+	 * 
+	 * 
+	 * @author <a href="http://www.hapiware.com" target="_blank">hapi</a>
+	 *
+	 */
+	public static class DocType {
 		private final static String[] PIC_TYPES = { "jpg", "jpeg", "png", "gif", "tiff" };
 		private final static String[] JAR_TYPES = { "jar", "war", "ear" };
 		private final static String APPLICATION_XML_CONFIG = readConfig("application-xml.conf");
 		private final static String PLAIN_TEXT_CONFIG = readConfig("plain-text.conf");
 		
+
+		/**
+		 * Reads a customisable file name ending file and converts it to {@link String}.
+		 * 
+		 * @param configName
+		 * 		File name for the configuration file.
+		 * 
+		 * @return
+		 * 		Configuration file as {@link String}.
+		 */
 		private final static String readConfig(String configName)
 		{
 			String retVal = "";
 			try {
-				BufferedReader reader =
-					new BufferedReader(
-						new InputStreamReader(
-							Thread
-								.currentThread()
-								.getContextClassLoader()
-								.getResourceAsStream(configName)
-						)
-					);
+				InputStream is =
+					Thread
+						.currentThread()
+						.getContextClassLoader()
+						.getResourceAsStream(configName);
+				if(is == null) {
+					LOGGER.log(Level.WARNING, "'" + configName + "' is missing.");
+					return "";
+				}
+				BufferedReader reader =	new BufferedReader(new InputStreamReader(is));
 				Pattern commentPattern = Pattern.compile("^ *#.*");
 				String line;
 				while((line = reader.readLine()) != null) {
@@ -545,6 +686,7 @@ public class HttpResponse
 		private final String _documentClass;
 		private final String _mimeType;
 		
+		
 		private DocType(String documentClass, String mimeType)
 		{
 			_documentClass = documentClass;
@@ -555,10 +697,10 @@ public class HttpResponse
 		{
 			fileName = fileName.toLowerCase();
 			DocType docType =
-				getConfiguredType(fileName, APPLICATION_XML_CONFIG, "xml", "application/xml");
+				getConfiguredType(fileName, PLAIN_TEXT_CONFIG, "text", TEXT_PLAIN);
 			if(docType == null)
 				docType =
-					getConfiguredType(fileName, PLAIN_TEXT_CONFIG, "text", "text/plain");
+					getConfiguredType(fileName, APPLICATION_XML_CONFIG, "xml", APPLICATION_XML);
 			if(docType == null)
 				docType = getHtmlType(fileName);
 			if(docType == null)
@@ -570,7 +712,7 @@ public class HttpResponse
 			if(docType == null)
 				docType = getJarType(fileName);
 			if(docType == null) {
-				_documentClass = "binary";
+				_documentClass = "unknown";
 				_mimeType = "application/octet-stream"; 
 			}
 			else {
@@ -596,8 +738,8 @@ public class HttpResponse
 		private static DocType getPicType(String fileNameToCheck)
 		{
 			for(String type : PIC_TYPES)
-				if(fileNameToCheck.endsWith(type))
-					return new DocType("image", "image/" + type);
+				if(fileNameToCheck.endsWith("." + type))
+					return new DocType("image", "image/" + (type.equals("jpg") ? "jpeg" : type));
 			
 			return null;
 		}
@@ -643,16 +785,35 @@ public class HttpResponse
 			return null;
 		}
 		
+		
+		/**
+		 * Returns the document class.
+		 * 
+		 * @return
+		 * 		Document class.
+		 */
 		public String getDocumentClass()
 		{
 			return _documentClass;
 		}
 
+		/**
+		 * Returns the MIME type.
+		 * 
+		 * @return
+		 * 		MIME type.
+		 */
 		public String getMimeType()
 		{
 			return _mimeType;
 		}
 		
+		/**
+		 * Prints only the document class and the MIME type. The form is:
+		 * <pre>
+		 * 	[DOCUMENT_CLASS:MIME_TYPE]
+		 * </pre>
+		 */
 		public String toString()
 		{
 			return "[" + _documentClass + ":" + _mimeType + "]";

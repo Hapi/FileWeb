@@ -1,5 +1,6 @@
 package com.hapiware.http;
 
+
 public enum HttpStatusCode
 {
 	/**
