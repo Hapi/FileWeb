@@ -10,12 +10,12 @@ DESCRIPTION
 'fileweb' is a small web server for publishing a file system over (local) net. 'fileweb'
 is useful if there is a resource to be shared over (local) net. For example, if a file
 need to be copied to another computer (with another operating system) 'fileweb' and wget
-together saves your day.
+together can save your day.
 
 Web root directory will be the directory where 'fileweb' was started. 
 
 'fileweb' recognises several filetypes but if that is not enough it can be modified.
-fileweb.jar has 'application-xml.conf' and 'plain-text.conf' files which contains file
+fileweb.jar has 'application-xml.conf' and 'plain-text.conf' files that contain file
 endings to be recognised as 'application/xml' and 'plain/text' MIME types respectively.
 Additionaly if the file is recognised as zip, jar, war or ear file then a browser shows
 a small eye symbol in the front of the file name. By clicking the eye the user can peek
