@@ -52,16 +52,18 @@ public class FileWeb
 		if(args.length > 2)
 			usageAndExit(-1);
 
-		if(
-			args[0].equalsIgnoreCase("-?") ||
-			args[0].equalsIgnoreCase("-h") ||
-			args[0].equalsIgnoreCase("-help") ||
-			args[0].equalsIgnoreCase("--help")
-		)
-			usageAndExit(0);
-		
-		if(args[0].equalsIgnoreCase("--version"))
-			showVersionAndExit();
+		if(args.length == 1) {
+			if(
+				args[0].equalsIgnoreCase("-?") ||
+				args[0].equalsIgnoreCase("-h") ||
+				args[0].equalsIgnoreCase("-help") ||
+				args[0].equalsIgnoreCase("--help")
+			)
+				usageAndExit(0);
+			
+			if(args[0].equalsIgnoreCase("--version"))
+				showVersionAndExit();
+		}
 		
 		int port = DEFAULT_PORT;
 		int numberOfThreads = DEFAULT_NUMBER_OF_THREADS;
@@ -203,7 +205,7 @@ public class FileWeb
 					Thread.sleep(500);
 				}
 				catch(InterruptedException e) {
-					// Does nothing.
+					retries = 0;
 				}
 			}
 		}
